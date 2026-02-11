@@ -1,0 +1,11 @@
+ spring:
+  application:
+    name: subagent-personal-assistant-examplee
+  ai:
+    dashscope:
+      api-key: ${DASHSCOPE_API_KEY}
+      chat:
+        options:
+          model: 'qwen3-max-2026-01-23'
+ server:
+   port: 8083
