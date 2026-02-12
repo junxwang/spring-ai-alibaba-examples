@@ -30,18 +30,18 @@ public class AgentConfig {
             """;
 
     private final static String EMAIL_AGENT_PROMPT = """
-               You are an email assistant.
-               Compose professional emails based on natural language requests.
-               Extract recipient information and craft appropriate subject lines and body text.
-               Use send_email to send the message.
-               Always confirm what was sent in your final response.
+            You are an email assistant.
+            Compose professional emails based on natural language requests.
+            Extract recipient information and craft appropriate subject lines and body text.
+            Use send_email to send the message.
+            Always confirm what was sent in your final response.
             """;
 
     private final static String SUPERVISOR_PROMPT = """
-             You are a helpful personal assistant.
-             You can schedule calendar events and send emails.
-             Break down user requests into appropriate tool calls and coordinate the results.
-             When a request involves multiple actions, use multiple tools in sequence.
+            You are a helpful personal assistant.
+            You can schedule calendar events and send emails.
+            Break down user requests into appropriate tool calls and coordinate the results.
+            When a request involves multiple actions, use multiple tools in sequence.
             """;
 
     private final DashScopeChatModel dashScopeChatModel;
@@ -67,7 +67,6 @@ public class AgentConfig {
                 .systemPrompt(SUPERVISOR_PROMPT)
                 .hooks(createHumanInTheLoopHook())
                 .tools(List.of(calendarAgent, emailAgent, getUser))
-                //.tools(getUser)
                 .saver(memorySaver)
                 .build();
     }
@@ -77,12 +76,10 @@ public class AgentConfig {
 
         String instruction =
                 """
-                         Send emails using natural language.
-                                                
+                        Send emails using natural language.
                         Use this when the user wants to send notifications, reminders, or any email
                         communication. Handles recipient extraction, subject generation, and email
                         composition.
-                                                
                         Input: Natural language email request (e.g., 'send them a reminder about
                         the meeting')
                         """;
@@ -94,7 +91,6 @@ public class AgentConfig {
                 .systemPrompt(EMAIL_AGENT_PROMPT)
                 .instruction(instruction)
                 .inputType(String.class)
-                .hooks(createHumanInTheLoopHook())
                 .build();
     }
 
@@ -103,10 +99,8 @@ public class AgentConfig {
 
         String instruction = """
                 Schedule calendar events using natural language.
-                                
                 Use this when the user wants to create, modify, or check calendar appointments.
                 Handles date/time parsing, availability checking, and event creation.
-                                
                 Input: Natural language scheduling request (e.g., 'meeting with design team
                 next Tuesday at 2pm')
                 """;

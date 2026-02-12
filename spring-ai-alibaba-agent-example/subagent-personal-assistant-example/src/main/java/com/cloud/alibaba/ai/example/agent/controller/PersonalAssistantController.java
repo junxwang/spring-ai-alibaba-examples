@@ -6,7 +6,6 @@ import com.alibaba.cloud.ai.graph.RunnableConfig;
 import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
-import com.alibaba.cloud.ai.graph.streaming.OutputType;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
 import com.alibaba.fastjson.JSON;
 import com.cloud.alibaba.ai.example.agent.HITLHelper;
@@ -28,7 +27,6 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 public class PersonalAssistantController {
 
-    private static final Map<String, OverAllState> ALL_STATE_MAP = new ConcurrentHashMap<String, OverAllState>();
     private static final Map<String, List<InterruptionMetadata.ToolFeedback>> TOOL_FEEDBACK_MAP = new ConcurrentHashMap<>();
 
     @Autowired
@@ -38,20 +36,18 @@ public class PersonalAssistantController {
     @GetMapping(value = "/react/agent/supervisorAgent", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux supervisorAgentTest(String query, String threadId, String nodeId) throws GraphRunnerException {
         RunnableConfig config;
-        if (nodeId != null && ALL_STATE_MAP.containsKey(nodeId)) {
+        if (nodeId != null && TOOL_FEEDBACK_MAP.containsKey(nodeId)) {
             System.out.println("人工介入开始...");
             // 人工介入利用检查点机制。
             // 你必须提供线程ID以将执行与会话线程关联，
             // 以便可以暂停和恢复对话（人工审查所需）。
-            OverAllState overAllState = ALL_STATE_MAP.get(nodeId);
-            InterruptionMetadata metadata = InterruptionMetadata.builder(nodeId, overAllState).toolFeedbacks(TOOL_FEEDBACK_MAP.get(nodeId)).build();
+            InterruptionMetadata metadata = InterruptionMetadata.builder().toolFeedbacks(TOOL_FEEDBACK_MAP.get(nodeId)).build();
             InterruptionMetadata approvalMetadata = HITLHelper.approveAll(metadata);
             // 使用批准决策恢复执行
             config = RunnableConfig.builder()
                     .threadId(threadId) // 相同的线程ID
                     .addHumanFeedback(approvalMetadata)
                     .build();
-            ALL_STATE_MAP.remove(nodeId);
             TOOL_FEEDBACK_MAP.remove(nodeId);
             return resumeStreamingWithHack(config);
         } else {
@@ -72,7 +68,8 @@ public class PersonalAssistantController {
                     // 使用 invokeAndGetOutput 恢复（同步阻塞）
                     Optional<NodeOutput> result = reactAgent.invokeAndGetOutput("", config);
                     if (result.isPresent()) {
-                        return extractMessageFromState(result.get());
+                        println(result.get());
+                        return result.get();
                     }
                     return "";
                 })
@@ -80,16 +77,6 @@ public class PersonalAssistantController {
                 .flux()
                 .concatMap(Flux::just);
     }
-
-    private NodeOutput extractMessageFromState(NodeOutput nodeOutput) {
-        OverAllState state = nodeOutput.state();
-        List<Message> messages = (List<Message>) state.data().get("messages");
-        // 解析 messages 列表获取最后一条 AI 消息...
-        Message lastMessage = messages.get(messages.size() - 1);
-        System.out.println(lastMessage);
-        return nodeOutput;
-    }
-
     private void println(NodeOutput nodeOutput) {
         if (nodeOutput instanceof StreamingOutput streamingOutput) {
             String node = streamingOutput.node();
@@ -124,8 +111,7 @@ public class PersonalAssistantController {
             }
             String node = interruptionMetadata.node();
             OverAllState state = interruptionMetadata.state();
-            System.out.println("参数 node: " + node);
-            ALL_STATE_MAP.put(node, state);
+            System.out.println("检测到中断,等待人工介入... node: " + node);
             TOOL_FEEDBACK_MAP.put(node, toolFeedbacks);
         } else {
             System.out.println("其它:" + JSON.toJSONString(nodeOutput));

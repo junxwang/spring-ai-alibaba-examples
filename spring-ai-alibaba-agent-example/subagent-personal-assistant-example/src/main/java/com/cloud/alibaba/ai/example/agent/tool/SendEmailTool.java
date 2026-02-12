@@ -23,10 +23,8 @@ public class SendEmailTool implements BiFunction<EmailInfo, ToolContext, String>
             }
         }
         // 模拟发送邮件
-        System.out.println("Sending email...");
-        String format = String.format("Email sent to %s - Subject: %s", String.join(", ", to), subject);
-        System.out.println( format);
-        return format;
+        System.out.printf("Email sent to %s - Subject: %s%n body: %s", String.join(", ", to), subject,body);
+        return String.format("Email sent to %s - Subject: %s", String.join(", ", to), subject);
     }
     private boolean isValidEmail(String email) {
         // 简单验证邮箱格式（实际应使用更严格的验证）
