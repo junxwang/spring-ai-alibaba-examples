@@ -1,3 +1,19 @@
+/*
+ * Copyright 2026-2027 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.cloud.alibaba.ai.example.agent.controller;
 
 import com.alibaba.cloud.ai.graph.NodeOutput;
@@ -7,11 +23,11 @@ import com.alibaba.cloud.ai.graph.action.InterruptionMetadata;
 import com.alibaba.cloud.ai.graph.agent.ReactAgent;
 import com.alibaba.cloud.ai.graph.exception.GraphRunnerException;
 import com.alibaba.cloud.ai.graph.streaming.StreamingOutput;
-import com.alibaba.fastjson.JSON;
 import com.cloud.alibaba.ai.example.agent.HITLHelper;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.ToolResponseMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -24,40 +40,58 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * REST controller for managing personal assistant functionalities.
+ * This controller handles requests related to the supervisor agent,
+ * including streaming responses and human-in-the-loop interventions.
+ *
+ * @author wangjx
+ * @since 2026-02-13
+ */
 @RestController
 public class PersonalAssistantController {
 
     private static final Map<String, List<InterruptionMetadata.ToolFeedback>> TOOL_FEEDBACK_MAP = new ConcurrentHashMap<>();
 
     @Autowired
-    private ReactAgent reactAgent;
+    @Qualifier("supervisorAgent")
+    private ReactAgent supervisorAgent;
 
 
+    /**
+     * Handles GET requests to the supervisor agent endpoint.
+     * Supports both regular streaming and human-in-the-loop interventions.
+     *
+     * @param query    the user's query string
+     * @param threadId the session thread identifier
+     * @param nodeId   the node identifier for human intervention
+     * @return a Flux stream of responses from the supervisor agent
+     * @throws GraphRunnerException if there's an error during graph execution
+     */
     @GetMapping(value = "/react/agent/supervisorAgent", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public Flux supervisorAgentTest(String query, String threadId, String nodeId) throws GraphRunnerException {
         RunnableConfig config;
         if (nodeId != null && TOOL_FEEDBACK_MAP.containsKey(nodeId)) {
             System.out.println("人工介入开始...");
-            // 人工介入利用检查点机制。
-            // 你必须提供线程ID以将执行与会话线程关联，
-            // 以便可以暂停和恢复对话（人工审查所需）。
+            // Human intervention using checkpoint mechanism.
+            // You must provide a thread ID to associate execution with a session thread,
+            // so that conversations can be paused and resumed (required for human review).
             InterruptionMetadata metadata = InterruptionMetadata.builder().toolFeedbacks(TOOL_FEEDBACK_MAP.get(nodeId)).build();
             InterruptionMetadata approvalMetadata = HITLHelper.approveAll(metadata);
-            // 使用批准决策恢复执行
+            // Resume execution using approval decision
             config = RunnableConfig.builder()
-                    .threadId(threadId) // 相同的线程ID
+                    .threadId(threadId) // Same thread ID
                     .addHumanFeedback(approvalMetadata)
                     .build();
             TOOL_FEEDBACK_MAP.remove(nodeId);
             return resumeStreamingWithHack(config);
         } else {
 
-            //String threadId = "user-session-123";
             config = RunnableConfig.builder()
                     .threadId(threadId)
                     .build();
         }
-        return reactAgent.stream(query, config)
+        return supervisorAgent.stream(query, config)
                 .doOnNext(this::println);
 
     }
@@ -66,7 +100,7 @@ public class PersonalAssistantController {
 
         return Mono.fromCallable(() -> {
                     // 使用 invokeAndGetOutput 恢复（同步阻塞）
-                    Optional<NodeOutput> result = reactAgent.invokeAndGetOutput("", config);
+                    Optional<NodeOutput> result = supervisorAgent.invokeAndGetOutput("", config);
                     if (result.isPresent()) {
                         println(result.get());
                         return result.get();
@@ -90,7 +124,7 @@ public class PersonalAssistantController {
             if ("_AGENT_TOOL_".equals(node)) {
                 ToolResponseMessage responseMessage = (ToolResponseMessage) message;
                 List<ToolResponseMessage.ToolResponse> responses = responseMessage.getResponses();
-                System.out.println("_AGENT_TOOL_");
+                System.out.println("================================= Tool Message =================================\n");
                 for (ToolResponseMessage.ToolResponse respons : responses) {
                     String string = respons.responseData();
                     System.out.println("id: " + respons.id());
@@ -113,8 +147,6 @@ public class PersonalAssistantController {
             OverAllState state = interruptionMetadata.state();
             System.out.println("检测到中断,等待人工介入... node: " + node);
             TOOL_FEEDBACK_MAP.put(node, toolFeedbacks);
-        } else {
-            System.out.println("其它:" + JSON.toJSONString(nodeOutput));
         }
     }
 }
