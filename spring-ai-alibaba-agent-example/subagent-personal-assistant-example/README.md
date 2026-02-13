@@ -1,4 +1,4 @@
-# Spring AI Alibaba SQL Agent Example
+# Spring AI Alibaba SubAgent Personal Assistant Example
 
 本示例展示如何使用 Spring AI Alibaba 的 ReactAgent 框架构建一个多智能体监督者模式系统，通过主智能体协调多个子智能体，实现日历代理与邮件发送功能。
 ## 功能特性
